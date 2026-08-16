@@ -16,7 +16,6 @@ Go, Postgres, optional Redis. `docker compose up` runs the lot.
 - [Approach](#approach) — what I built and why
 - [The core write path](#the-core-write-path)
 - [Idempotency](#idempotency)
-- [Designing for 100,000 notifications per minute](#designing-for-100000-notifications-per-minute)
 - [Architecture](#architecture)
 - [Running it](#running-it)
 - [API reference](#api-reference)
