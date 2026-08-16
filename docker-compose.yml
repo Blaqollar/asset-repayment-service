@@ -1,0 +1,76 @@
+services:
+  service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asset-repayment-service
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/asset_repayment?sslmode=disable
+      DATABASE_MAX_OPEN_CONNS: "25"
+      REDIS_ADDRESS: redis:6379
+      # The synchronous path is the default. Set this to "true" to route
+      # ingest through the Redis stream and have workers apply the payments.
+      QUEUE_ENABLED: "false"
+      QUEUE_WORKERS: "16"
+      PAYMENT_PROVIDER_TIMEZONE: Africa/Lagos
+      PAYMENT_CURRENCY: NGN
+      # Left blank locally so the sample curl commands in the README work
+      # without signing. Config.Validate refuses to start without it when
+      # APP_ENV=production.
+      PAYMENT_WEBHOOK_SECRET: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: asset-repayment-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: asset_repayment
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command:
+      # Tuned for the write-heavy ingest profile rather than Postgres defaults,
+      # which assume a much smaller machine.
+      - postgres
+      - -c
+      - max_connections=300
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - synchronous_commit=off      # see the durability note in the README
+      - -c
+      - wal_writer_delay=200ms
+      - -c
+      - checkpoint_completion_target=0.9
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: asset-repayment-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
